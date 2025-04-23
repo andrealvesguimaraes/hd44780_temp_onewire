@@ -12,6 +12,7 @@ use embassy_rp::pio::{self, InterruptHandler, Pio};
 use embassy_rp::pio_programs::onewire::{PioOneWire, PioOneWireProgram};
 use embassy_rp::pwm::{self, Pwm};
 use embassy_time::Timer;
+//use embedded_hal_1::digital::OutputPin;
 use heapless::String;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -62,6 +63,7 @@ async fn main(_spawner: Spawner) {
     .unwrap();
 
     loop {
+        led_pin.set_low();
         Timer::after_secs(1).await;
         led_pin.set_high();
         // Clear the screen
@@ -71,7 +73,6 @@ async fn main(_spawner: Spawner) {
         // Write to the top line
         lcd.write_str("## TINKERBELL ##", &mut embassy_time::Delay)
             .unwrap();
-
         //lcd.write_str("rp-hal on", &mut embassy_time::Delay)
         //.uwrite_strnwrap();
 
@@ -93,12 +94,13 @@ async fn main(_spawner: Spawner) {
 
                 // Formata o valor float 'temp' para a string 'buffer'
                 // "{:.1}" formata com uma casa decimal. Ajuste se necessário.
-                write!(buffer, "Temp: {:.1}{}C", temp, 0x6f as char)
-                    .expect("Failed to format temperature");
+                write!(buffer, "Temp: {:.1}", temp).expect("Failed to format temperature");
 
                 // Escreve a string formatada no LCD
                 lcd.write_str(buffer.as_str(), &mut embassy_time::Delay)
                     .unwrap();
+                lcd.write_byte(0xDF, &mut embassy_time::Delay).unwrap();
+                lcd.write_byte(b'C', &mut embassy_time::Delay).unwrap();
             }
             _ => info!("Error!!!"),
         }
