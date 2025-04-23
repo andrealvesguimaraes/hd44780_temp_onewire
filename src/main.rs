@@ -1,5 +1,3 @@
-//! This example shows how you can use PIO to read a `DS18B20` one-wire temperature sensor.
-
 #![no_std]
 #![no_main]
 use core::fmt::Write;
@@ -12,7 +10,6 @@ use embassy_rp::pio::{self, InterruptHandler, Pio};
 use embassy_rp::pio_programs::onewire::{PioOneWire, PioOneWireProgram};
 use embassy_rp::pwm::{self, Pwm};
 use embassy_time::Timer;
-//use embedded_hal_1::digital::OutputPin;
 use heapless::String;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -30,7 +27,7 @@ async fn main(_spawner: Spawner) {
 
     let mut sensor = Ds18b20::new(onewire);
 
-    //Configure LCD Brilho
+    //Configure LCD Contrast Pin GP15(RP2040) to Pin VE(HD44780)
     let _pwm = Pwm::new_output_b(p.PWM_SLICE7, p.PIN_15, {
         let mut c = pwm::Config::default();
         c.divider = 125.into();
@@ -39,8 +36,7 @@ async fn main(_spawner: Spawner) {
         c
     });
 
-    // Configure os pinos do LCD
-    //let _bright_pin = Output::new(p.PIN_15, Level::Low);
+    // Configure LCD Pinout
     let _rw_pin = Output::new(p.PIN_9, Level::Low);
     let rs_pin = Output::new(p.PIN_8, Level::Low);
     let en_pin = Output::new(p.PIN_10, Level::Low);
@@ -49,8 +45,10 @@ async fn main(_spawner: Spawner) {
     let d6_pin = Output::new(p.PIN_13, Level::Low);
     let d7_pin = Output::new(p.PIN_14, Level::Low);
 
+    //Configure internal led activity
     let mut led_pin = Output::new(p.PIN_25, Level::Low);
-    // Inicialize o driver HD44780 no modo de 4 bits
+
+    // Initialize HD44780 Driver 4 bits Mode
     let mut lcd = hd44780_driver::HD44780::new_4bit(
         rs_pin,
         en_pin,
@@ -58,14 +56,16 @@ async fn main(_spawner: Spawner) {
         d5_pin,
         d6_pin,
         d7_pin,
-        &mut embassy_time::Delay, // Use embassy_time::Delay para delays assíncronos
+        &mut embassy_time::Delay,
     )
     .unwrap();
 
     loop {
+        //Internal Led Activity
         led_pin.set_low();
         Timer::after_secs(1).await;
         led_pin.set_high();
+
         // Clear the screen
         lcd.reset(&mut embassy_time::Delay).unwrap();
         lcd.clear(&mut embassy_time::Delay).unwrap();
@@ -73,32 +73,29 @@ async fn main(_spawner: Spawner) {
         // Write to the top line
         lcd.write_str("## TINKERBELL ##", &mut embassy_time::Delay)
             .unwrap();
-        //lcd.write_str("rp-hal on", &mut embassy_time::Delay)
-        //.uwrite_strnwrap();
 
         // Move the cursor
         lcd.set_cursor_pos(40, &mut embassy_time::Delay).unwrap();
-
-        // Write more more text
-        //lcd.write_str("HD44780! ", &mut embassy_time::Delay)
-        //.unwrap();
-
         lcd.set_autoscroll(false, &mut embassy_time::Delay).unwrap();
-        sensor.start().await; // Start a new measurement
-        Timer::after_secs(1).await; // Allow 1s for the measurement to finish
+
+        //Start a new measurement
+        sensor.start().await;
+
+        // Allow 1s for the measurement to finish
+        Timer::after_secs(1).await;
 
         match sensor.temperature().await {
             Ok(temp) => {
-                // Cria um buffer de string com capacidade fixa (e.g., 16 bytes)
+                // String buffer 16 bytes
                 let mut buffer: String<16> = String::new();
 
-                // Formata o valor float 'temp' para a string 'buffer'
-                // "{:.1}" formata com uma casa decimal. Ajuste se necessário.
                 write!(buffer, "Temp: {:.1}", temp).expect("Failed to format temperature");
 
-                // Escreve a string formatada no LCD
+                // Write format buffer to LCD
                 lcd.write_str(buffer.as_str(), &mut embassy_time::Delay)
                     .unwrap();
+
+                // Write raw data (symbol) to LCD
                 lcd.write_byte(0xDF, &mut embassy_time::Delay).unwrap();
                 lcd.write_byte(b'C', &mut embassy_time::Delay).unwrap();
             }
